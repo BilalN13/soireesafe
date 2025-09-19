@@ -8,8 +8,8 @@ void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   await Supabase.initialize(
-    url: Constants.SUPABASE_URL,
-    anonKey: Constants.SUPABASE_ANON_KEY,
+    url: Constants.supabaseUrl,
+    anonKey: Constants.supabaseAnonKey,
   );
 
   runApp(const SoireeSafeApp());

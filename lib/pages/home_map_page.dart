@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:soireesafe/constants.dart';
-import 'package:soireesafe/models.dart';
 import 'package:soireesafe/services/bar_service.dart';
 import 'package:soireesafe/pages/bars_list_page.dart';
 import 'package:soireesafe/pages/bar_detail_page.dart';
@@ -15,7 +14,8 @@ class HomeMapPage extends StatefulWidget {
 
 class _HomeMapPageState extends State<HomeMapPage> {
   MapLibreMapController? mapController;
-  List<BarStat> bars = [];
+  final BarService _svc = BarService();
+  List<Map<String, dynamic>> bars = [];
   bool isLoading = true;
 
   @override
@@ -26,9 +26,9 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
   Future<void> _loadBars() async {
     try {
-      final barStats = await BarService.fetchBarStats();
+      final barStats = await _svc.fetchBarStats();
       setState(() {
-        bars = barStats;
+        bars = List<Map<String, dynamic>>.from(barStats);
         isLoading = false;
       });
       _addMarkersToMap();
@@ -48,10 +48,14 @@ class _HomeMapPageState extends State<HomeMapPage> {
     if (mapController == null || bars.isEmpty) return;
 
     for (final bar in bars) {
+      final lat = (bar['lat'] as num?)?.toDouble();
+      final lng = (bar['lng'] as num?)?.toDouble();
+      final noteMoy = (bar['note_moy'] as num?)?.toDouble();
+      if (lat == null || lng == null) continue;
       await mapController!.addSymbol(
         SymbolOptions(
-          geometry: LatLng(bar.lat, bar.lng),
-          textField: bar.noteMoy?.toStringAsFixed(1) ?? '—',
+          geometry: LatLng(lat, lng),
+          textField: noteMoy?.toStringAsFixed(1) ?? '—',
           textColor: '#FFFFFF',
           textSize: 12,
           textOffset: const Offset(0, 0),
@@ -66,17 +70,21 @@ class _HomeMapPageState extends State<HomeMapPage> {
   void _onMarkerTapped(Symbol symbol) {
     final tappedLatLng = symbol.options.geometry;
     if (tappedLatLng == null) return;
-    
+
     // Find the bar that matches the tapped marker
     final bar = bars.firstWhere(
-      (b) => (b.lat - tappedLatLng.latitude).abs() < 0.0001 &&
-             (b.lng - tappedLatLng.longitude).abs() < 0.0001,
+      (b) =>
+          ((b['lat'] as num?)?.toDouble() ?? 0 - tappedLatLng.latitude).abs() <
+              0.0001 &&
+          ((b['lng'] as num?)?.toDouble() ?? 0 - tappedLatLng.longitude).abs() <
+              0.0001,
       orElse: () => bars.first,
     );
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) => BarDetailPage(barId: bar.id),
+        builder: (context) =>
+            BarDetailPage(barId: (bar['id'] ?? bar['bar_id']).toString()),
       ),
     );
   }
@@ -104,7 +112,7 @@ class _HomeMapPageState extends State<HomeMapPage> {
           : Stack(
               children: [
                 MapLibreMap(
-                  styleString: Constants.STYLE_URL,
+                  styleString: Constants.styleUrl,
                   onMapCreated: _onMapCreated,
                   initialCameraPosition: const CameraPosition(
                     target: LatLng(
@@ -136,7 +144,8 @@ class _HomeMapPageState extends State<HomeMapPage> {
                               children: [
                                 Text(
                                   'Bars à Marseille',
-                                  style: Theme.of(context).textTheme.titleMedium,
+                                  style:
+                                      Theme.of(context).textTheme.titleMedium,
                                 ),
                                 Text(
                                   '${bars.length} établissements référencés',

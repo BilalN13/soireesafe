@@ -1,284 +1,97 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:soireesafe/models.dart';
-import 'package:soireesafe/services/bar_service.dart';
-import 'package:soireesafe/widgets/rating_badge.dart';
-import 'package:soireesafe/pages/add_review_page.dart';
+import '../services/bar_service.dart';
+import 'add_review_page.dart';
 
 class BarDetailPage extends StatefulWidget {
   final String barId;
-
-  const BarDetailPage({
-    super.key,
-    required this.barId,
-  });
+  const BarDetailPage({super.key, required this.barId});
 
   @override
   State<BarDetailPage> createState() => _BarDetailPageState();
 }
 
 class _BarDetailPageState extends State<BarDetailPage> {
-  Map<String, dynamic>? barInfo;
-  List<AvisItem> reviews = [];
-  bool isLoadingBar = true;
-  bool isLoadingReviews = true;
-  bool isLoggedIn = false;
+  final _svc = BarService();
+  Map<String, dynamic>? _bar;
+  List<Map<String, dynamic>> _avis = [];
+  bool _loading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _checkAuthState();
-    _loadBarDetails();
-    _loadReviews();
+    _load();
   }
 
-  void _checkAuthState() {
+  Future<void> _load() async {
     setState(() {
-      isLoggedIn = Supabase.instance.client.auth.currentSession != null;
+      _loading = true;
+      _error = null;
     });
-  }
-
-  Future<void> _loadBarDetails() async {
     try {
-      final details = await BarService.fetchBarById(widget.barId);
+      final b = await _svc.fetchBarById(widget.barId);
+      final a = await _svc.fetchLastReviews(widget.barId, limit: 10);
       setState(() {
-        barInfo = details;
-        isLoadingBar = false;
+        _bar = b;
+        _avis = a;
       });
     } catch (e) {
       setState(() {
-        isLoadingBar = false;
+        _error = e.toString();
       });
-    }
-  }
-
-  Future<void> _loadReviews() async {
-    try {
-      final reviewsList = await BarService.fetchLastReviews(widget.barId);
-      setState(() {
-        reviews = reviewsList;
-        isLoadingReviews = false;
-      });
-    } catch (e) {
-      setState(() {
-        isLoadingReviews = false;
-      });
-    }
-  }
-
-  Future<void> _navigateToAddReview() async {
-    if (!isLoggedIn) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Vous devez être connecté pour ajouter un avis'),
-        ),
-      );
-      return;
-    }
-
-    final result = await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => AddReviewPage(barId: widget.barId),
-      ),
-    );
-
-    if (result == true) {
-      _loadReviews(); // Refresh reviews after adding a new one
+    } finally {
+      if (mounted)
+        setState(() {
+          _loading = false;
+        });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading)
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Bar')),
+        body: Center(child: Text('Erreur: $_error')),
+      );
+    }
+    final b = _bar!;
     return Scaffold(
-      appBar: AppBar(
-        title: Text(barInfo?['nom'] ?? 'Chargement...'),
-      ),
-      body: isLoadingBar
-          ? const Center(child: CircularProgressIndicator())
-          : barInfo == null
-              ? const Center(child: Text('Bar non trouvé'))
-              : SingleChildScrollView(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      _buildBarHeader(),
-                      const SizedBox(height: 24),
-                      _buildAddReviewButton(),
-                      const SizedBox(height: 24),
-                      _buildReviewsSection(),
-                    ],
-                  ),
-                ),
-    );
-  }
-
-  Widget _buildBarHeader() {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.local_bar,
-                  size: 32,
-                  color: Theme.of(context).colorScheme.primary,
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    barInfo!['nom'],
-                    style: Theme.of(context).textTheme.headlineSmall,
-                  ),
-                ),
-              ],
-            ),
-            if (barInfo!['adresse'] != null) ...[
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  Icon(
-                    Icons.location_on,
-                    size: 20,
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      barInfo!['adresse'],
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: Theme.of(context).colorScheme.onSurfaceVariant,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAddReviewButton() {
-    return SizedBox(
-      width: double.infinity,
-      child: FilledButton.icon(
-        onPressed: _navigateToAddReview,
+      appBar: AppBar(title: Text(b['nom'] ?? 'Bar')),
+      floatingActionButton: FloatingActionButton.extended(
         icon: const Icon(Icons.add_comment),
         label: const Text('Ajouter un avis'),
+        onPressed: () async {
+          await Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => AddReviewPage(barId: widget.barId)));
+          await _load(); // refresh après retour
+        },
       ),
-    );
-  }
-
-  Widget _buildReviewsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Icon(
-              Icons.rate_review,
-              color: Theme.of(context).colorScheme.primary,
-            ),
-            const SizedBox(width: 8),
-            Text(
-              'Derniers avis',
-              style: Theme.of(context).textTheme.headlineSmall,
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        
-        if (isLoadingReviews)
-          const Center(child: CircularProgressIndicator())
-        else if (reviews.isEmpty)
-          const Center(
-            child: Padding(
-              padding: EdgeInsets.all(32),
-              child: Text('Aucun avis pour le moment'),
-            ),
-          )
-        else
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: reviews.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final review = reviews[index];
-              return ReviewCard(review: review);
-            },
-          ),
-      ],
-    );
-  }
-}
-
-class ReviewCard extends StatelessWidget {
-  final AvisItem review;
-
-  const ReviewCard({
-    super.key,
-    required this.review,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final formatter = DateFormat('dd/MM/yyyy');
-
-    return Card(
-      child: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 4,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    AvisItem.getTypeLabel(review.type),
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: Theme.of(context).colorScheme.onPrimaryContainer,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                const Spacer(),
-                RatingBadge(
-                  rating: review.note.toDouble(),
-                  size: 28,
-                ),
-              ],
+        children: [
+          Text(b['adresse'] ?? '', style: const TextStyle(color: Colors.grey)),
+          const SizedBox(height: 16),
+          const Text('Derniers avis',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const SizedBox(height: 8),
+          if (_avis.isEmpty) const Text('Aucun avis pour le moment.'),
+          for (final v in _avis)
+            ListTile(
+              leading: Chip(
+                  label: Text(
+                      (v['type'] as String).substring(0, 1).toUpperCase() +
+                          (v['type'] as String).substring(1))),
+              title: Text('${v['note']}/5'),
+              subtitle:
+                  v['commentaire'] == null ? null : Text(v['commentaire']),
+              dense: true,
             ),
-            if (review.commentaire != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                review.commentaire!,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              formatter.format(review.createdAt),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ),
+        ],
       ),
     );
   }

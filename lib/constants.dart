@@ -1,11 +1,12 @@
 class Constants {
   // Supabase Configuration
-  static const String SUPABASE_URL = 'YOUR_SUPABASE_URL';
-  static const String SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';
-  
+  static const String supabaseUrl = 'https://zoxiyajiiuryhzssiywo.supabase.co';
+  static const String supabaseAnonKey =
+      'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InpveGl5YWppaXVyeWh6c3NpeXdvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMjk0MjMsImV4cCI6MjA3MTcwNTQyM30.TCWiWBB_v0MEt2VSFpNXUo-lJFnp5e-d_MRtS3xa2hw';
+
   // MapLibre Configuration
-  static const String STYLE_URL = 'https://demotiles.maplibre.org/style.json';
-  
+  static const String styleUrl = 'https://demotiles.maplibre.org/style.json';
+
   // Marseille coordinates
   static const double marseilleLatitude = 43.2965;
   static const double marseilleLongitude = 5.3698;

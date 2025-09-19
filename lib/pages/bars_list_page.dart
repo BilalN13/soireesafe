@@ -1,146 +1,128 @@
 import 'package:flutter/material.dart';
-import 'package:soireesafe/models.dart';
-import 'package:soireesafe/services/bar_service.dart';
-import 'package:soireesafe/widgets/rating_badge.dart';
-import 'package:soireesafe/pages/bar_detail_page.dart';
+import '../services/bar_service.dart';
+import 'bar_detail_page.dart';
 
 class BarsListPage extends StatefulWidget {
   const BarsListPage({super.key});
-
   @override
   State<BarsListPage> createState() => _BarsListPageState();
 }
 
 class _BarsListPageState extends State<BarsListPage> {
-  List<BarStat> bars = [];
-  bool isLoading = true;
+  final _svc = BarService();
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _bars = [];
 
   @override
   void initState() {
     super.initState();
-    _loadBars();
+    _load();
   }
 
-  Future<void> _loadBars() async {
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
-      final barStats = await BarService.fetchBarStats();
-      // Sort by average rating desc (null values last)
-      barStats.sort((a, b) {
-        if (a.noteMoy == null && b.noteMoy == null) return 0;
-        if (a.noteMoy == null) return 1;
-        if (b.noteMoy == null) return -1;
-        return b.noteMoy!.compareTo(a.noteMoy!);
-      });
-
+      final data = await _svc.fetchBarStats();
       setState(() {
-        bars = barStats;
-        isLoading = false;
+        _bars = data;
       });
     } catch (e) {
       setState(() {
-        isLoading = false;
+        _error = e.toString();
       });
+    } finally {
+      if (mounted)
+        setState(() {
+          _loading = false;
+        });
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    if (_loading) {
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+    if (_error != null) {
+      return Scaffold(
+        appBar: AppBar(title: const Text('Tous les bars')),
+        body: Center(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Erreur: $_error'),
+              const SizedBox(height: 8),
+              FilledButton(onPressed: _load, child: const Text('Réessayer')),
+            ],
+          ),
+        ),
+      );
+    }
+
+    // Tri par meilleure note (null en dernier)
+    _bars.sort((a, b) {
+      final na = (a['note_moy'] as num?)?.toDouble();
+      final nb = (b['note_moy'] as num?)?.toDouble();
+      if (na == null && nb == null) return 0;
+      if (na == null) return 1;
+      if (nb == null) return -1;
+      return nb.compareTo(na);
+    });
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Tous les bars'),
+      appBar: AppBar(title: const Text('Tous les bars')),
+      body: ListView.separated(
+        itemCount: _bars.length,
+        separatorBuilder: (_, __) => const Divider(height: 1),
+        itemBuilder: (context, i) {
+          final b = _bars[i];
+          final id = b['bar_id'] ?? b['id']; // selon la vue
+          final note = (b['note_moy'] as num?)?.toDouble();
+          return ListTile(
+            leading: _NoteBadge(value: note),
+            title: Text(b['nom'] ?? '—'),
+            subtitle: Text('${b['adresse'] ?? ''}'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                  builder: (_) => BarDetailPage(barId: id.toString())),
+            ),
+          );
+        },
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : bars.isEmpty
-              ? const Center(
-                  child: Text('Aucun bar trouvé'),
-                )
-              : ListView.builder(
-                  itemCount: bars.length,
-                  itemBuilder: (context, index) {
-                    final bar = bars[index];
-                    return BarListTile(
-                      bar: bar,
-                      onTap: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => BarDetailPage(barId: bar.id),
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
     );
   }
 }
 
-class BarListTile extends StatelessWidget {
-  final BarStat bar;
-  final VoidCallback onTap;
-
-  const BarListTile({
-    super.key,
-    required this.bar,
-    required this.onTap,
-  });
-
+class _NoteBadge extends StatelessWidget {
+  final double? value;
+  const _NoteBadge({required this.value});
   @override
   Widget build(BuildContext context) {
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: ListTile(
-        contentPadding: const EdgeInsets.all(16),
-        leading: RatingBadge(
-          rating: bar.noteMoy,
-          size: 48,
-        ),
-        title: Text(
-          bar.nom,
-          style: Theme.of(context).textTheme.titleMedium,
-        ),
-        subtitle: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const SizedBox(height: 4),
-            if (bar.adresse != null)
-              Text(
-                bar.adresse!,
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Icon(
-                  Icons.star,
-                  size: 16,
-                  color: Colors.amber,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  bar.noteMoy?.toStringAsFixed(1) ?? 'Non noté',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-                const SizedBox(width: 16),
-                Icon(
-                  Icons.comment,
-                  size: 16,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-                const SizedBox(width: 4),
-                Text(
-                  '${bar.nbAvis} avis',
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ],
-        ),
-        trailing: const Icon(Icons.chevron_right),
-        onTap: onTap,
-      ),
+    final v = value;
+    Color bg;
+    if (v == null) {
+      bg = Colors.grey;
+    } else if (v >= 4) {
+      bg = Colors.green;
+    } else if (v >= 2) {
+      bg = Colors.orange;
+    } else {
+      bg = Colors.red;
+    }
+    return Container(
+      width: 42,
+      height: 42,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+          color: bg.withAlpha(38), borderRadius: BorderRadius.circular(8)),
+      child: Text(v?.toStringAsFixed(1) ?? '—',
+          style: TextStyle(color: bg, fontWeight: FontWeight.w700)),
     );
   }
 }

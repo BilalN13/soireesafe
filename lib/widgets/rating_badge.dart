@@ -49,12 +49,22 @@ class RatingBadge extends StatelessWidget {
   }
 
   Color _getRatingColor(double? rating) {
-    if (rating == null) return Colors.grey;
-    
-    if (rating >= 4.5) return Colors.green;
-    if (rating >= 4.0) return Colors.lightGreen;
-    if (rating >= 3.5) return Colors.orange;
-    if (rating >= 3.0) return Colors.deepOrange;
+    if (rating == null) {
+      return Colors.grey;
+    }
+
+    if (rating >= 4.5) {
+      return Colors.green;
+    }
+    if (rating >= 4.0) {
+      return Colors.lightGreen;
+    }
+    if (rating >= 3.5) {
+      return Colors.orange;
+    }
+    if (rating >= 3.0) {
+      return Colors.deepOrange;
+    }
     return Colors.red;
   }
 }

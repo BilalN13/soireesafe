@@ -48,7 +48,7 @@ class _AuthGateState extends State<AuthGate> {
       await Supabase.instance.client.auth.signInWithOtp(
         email: _emailController.text.trim(),
       );
-      
+
       if (mounted) {
         setState(() {
           _linkSent = true;
@@ -104,20 +104,19 @@ class _AuthGateState extends State<AuthGate> {
                     'SoireeSafe',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.bold,
+                        ),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Découvrez et évaluez les bars de Marseille',
                     textAlign: TextAlign.center,
                     style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                   ),
                   const SizedBox(height: 48),
-                  
                   if (!_linkSent) ...[
                     TextField(
                       controller: _emailController,
@@ -173,9 +172,12 @@ class _AuthGateState extends State<AuthGate> {
                           const SizedBox(height: 16),
                           Text(
                             'Lien envoyé !',
-                            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                              color: Theme.of(context).colorScheme.primary,
-                            ),
+                            style: Theme.of(context)
+                                .textTheme
+                                .headlineSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.primary,
+                                ),
                           ),
                           const SizedBox(height: 8),
                           Text(

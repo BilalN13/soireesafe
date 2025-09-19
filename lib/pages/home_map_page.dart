@@ -45,13 +45,17 @@ class _HomeMapPageState extends State<HomeMapPage> {
   }
 
   Future<void> _addMarkersToMap() async {
-    if (mapController == null || bars.isEmpty) return;
+    if (mapController == null || bars.isEmpty) {
+      return;
+    }
 
     for (final bar in bars) {
       final lat = (bar['lat'] as num?)?.toDouble();
       final lng = (bar['lng'] as num?)?.toDouble();
       final noteMoy = (bar['note_moy'] as num?)?.toDouble();
-      if (lat == null || lng == null) continue;
+      if (lat == null || lng == null) {
+        continue;
+      }
       await mapController!.addSymbol(
         SymbolOptions(
           geometry: LatLng(lat, lng),
@@ -69,7 +73,9 @@ class _HomeMapPageState extends State<HomeMapPage> {
 
   void _onMarkerTapped(Symbol symbol) {
     final tappedLatLng = symbol.options.geometry;
-    if (tappedLatLng == null) return;
+    if (tappedLatLng == null) {
+      return;
+    }
 
     // Find the bar that matches the tapped marker
     final bar = bars.firstWhere(

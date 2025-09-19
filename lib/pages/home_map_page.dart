@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:soireesafe/constants.dart';
-import 'package:soireesafe/services/bar_service.dart';
-import 'package:soireesafe/pages/bars_list_page.dart';
 import 'package:soireesafe/pages/bar_detail_page.dart';
+import 'package:soireesafe/pages/bars_list_page.dart';
+import 'package:soireesafe/services/bar_service.dart';
 
 class HomeMapPage extends StatefulWidget {
   const HomeMapPage({super.key});
@@ -13,10 +13,11 @@ class HomeMapPage extends StatefulWidget {
 }
 
 class _HomeMapPageState extends State<HomeMapPage> {
-  MapLibreMapController? mapController;
   final BarService _svc = BarService();
-  List<Map<String, dynamic>> bars = [];
-  bool isLoading = true;
+  MapLibreMapController? _mapController;
+  bool _loading = true;
+  String? _error;
+  List<Map<String, dynamic>> _bars = [];
 
   @override
   void initState() {
@@ -25,78 +26,184 @@ class _HomeMapPageState extends State<HomeMapPage> {
   }
 
   Future<void> _loadBars() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+
     try {
-      final barStats = await _svc.fetchBarStats();
+      final data = await _svc.fetchBarStats();
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        bars = List<Map<String, dynamic>>.from(barStats);
-        isLoading = false;
+        _bars = List<Map<String, dynamic>>.from(data);
+        _loading = false;
       });
-      _addMarkersToMap();
+      await _addMarkersToMap();
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
       setState(() {
-        isLoading = false;
+        _loading = false;
+        _error = e.toString();
       });
     }
   }
 
   void _onMapCreated(MapLibreMapController controller) {
-    mapController = controller;
+    _mapController = controller;
+    controller.onSymbolTapped.add(_onMarkerTapped);
     _addMarkersToMap();
   }
 
   Future<void> _addMarkersToMap() async {
-    if (mapController == null || bars.isEmpty) {
+    final controller = _mapController;
+    if (controller == null || _bars.isEmpty) {
       return;
     }
 
-    for (final bar in bars) {
+    await controller.clearSymbols();
+
+    for (final bar in _bars) {
       final lat = (bar['lat'] as num?)?.toDouble();
       final lng = (bar['lng'] as num?)?.toDouble();
-      final noteMoy = (bar['note_moy'] as num?)?.toDouble();
       if (lat == null || lng == null) {
         continue;
       }
-      await mapController!.addSymbol(
+      final noteMoy = (bar['note_moy'] as num?)?.toDouble();
+      final barId = (bar['id'] ?? bar['bar_id']).toString();
+
+      await controller.addSymbol(
         SymbolOptions(
           geometry: LatLng(lat, lng),
-          textField: noteMoy?.toStringAsFixed(1) ?? '—',
-          textColor: '#FFFFFF',
-          textSize: 12,
-          textOffset: const Offset(0, 0),
           iconImage: 'marker-15',
+          textField: noteMoy?.toStringAsFixed(1) ?? '--',
+          textColor: '#FFFFFF',
+          textOffset: const Offset(0, -1.2),
+          textSize: 12,
         ),
+        <String, dynamic>{
+          'barId': barId,
+        },
       );
     }
-
-    mapController!.onSymbolTapped.add(_onMarkerTapped);
   }
 
   void _onMarkerTapped(Symbol symbol) {
-    final tappedLatLng = symbol.options.geometry;
-    if (tappedLatLng == null) {
+    final data = symbol.data;
+    String? barId;
+
+    if (data is Map && data['barId'] != null) {
+      barId = data['barId'].toString();
+    } else {
+      final tappedLatLng = symbol.options.geometry;
+      if (tappedLatLng != null) {
+        final match = _bars.firstWhere(
+          (bar) {
+            final lat = (bar['lat'] as num?)?.toDouble();
+            final lng = (bar['lng'] as num?)?.toDouble();
+            if (lat == null || lng == null) {
+              return false;
+            }
+            return (lat - tappedLatLng.latitude).abs() < 0.0001 &&
+                (lng - tappedLatLng.longitude).abs() < 0.0001;
+          },
+          orElse: () => <String, dynamic>{},
+        );
+        if (match.isNotEmpty) {
+          barId = (match['id'] ?? match['bar_id']).toString();
+        }
+      }
+    }
+
+    if (barId == null) {
       return;
     }
 
-    // Find the bar that matches the tapped marker
-    final bar = bars.firstWhere(
-      (b) =>
-          ((b['lat'] as num?)?.toDouble() ?? 0 - tappedLatLng.latitude).abs() <
-              0.0001 &&
-          ((b['lng'] as num?)?.toDouble() ?? 0 - tappedLatLng.longitude).abs() <
-              0.0001,
-      orElse: () => bars.first,
-    );
+    final String selectedId = barId;
 
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (context) =>
-            BarDetailPage(barId: (bar['id'] ?? bar['bar_id']).toString()),
+        builder: (context) => BarDetailPage(barId: selectedId),
       ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    Widget body;
+    if (_loading) {
+      body = const Center(child: CircularProgressIndicator());
+    } else if (_error != null) {
+      body = Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Erreur: $_error'),
+            const SizedBox(height: 12),
+            FilledButton(
+              onPressed: _loadBars,
+              child: const Text('Reessayer'),
+            ),
+          ],
+        ),
+      );
+    } else {
+      body = Stack(
+        children: [
+          MapLibreMap(
+            styleString: Constants.styleUrl,
+            onMapCreated: _onMapCreated,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(
+                Constants.marseilleLatitude,
+                Constants.marseilleLongitude,
+              ),
+              zoom: 13.0,
+            ),
+            trackCameraPosition: true,
+          ),
+          Positioned(
+            top: 16,
+            left: 16,
+            right: 16,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.local_bar,
+                      color: Theme.of(context).colorScheme.primary,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Bars a Marseille',
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          Text(
+                            '${_bars.length} etablissements references',
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('SoireeSafe'),
@@ -113,66 +220,14 @@ class _HomeMapPageState extends State<HomeMapPage> {
           ),
         ],
       ),
-      body: isLoading
-          ? const Center(child: CircularProgressIndicator())
-          : Stack(
-              children: [
-                MapLibreMap(
-                  styleString: Constants.styleUrl,
-                  onMapCreated: _onMapCreated,
-                  initialCameraPosition: const CameraPosition(
-                    target: LatLng(
-                      Constants.marseilleLatitude,
-                      Constants.marseilleLongitude,
-                    ),
-                    zoom: 13.0,
-                  ),
-                  trackCameraPosition: true,
-                ),
-                Positioned(
-                  top: 16,
-                  left: 16,
-                  right: 16,
-                  child: Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Row(
-                        children: [
-                          Icon(
-                            Icons.local_bar,
-                            color: Theme.of(context).colorScheme.primary,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Text(
-                                  'Bars à Marseille',
-                                  style:
-                                      Theme.of(context).textTheme.titleMedium,
-                                ),
-                                Text(
-                                  '${bars.length} établissements référencés',
-                                  style: Theme.of(context).textTheme.bodySmall,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+      body: body,
     );
   }
 
   @override
   void dispose() {
-    mapController?.dispose();
+    _mapController?.onSymbolTapped.remove(_onMarkerTapped);
+    _mapController?.dispose();
     super.dispose();
   }
 }

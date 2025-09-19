@@ -16,64 +16,72 @@ class AddReviewPage extends StatefulWidget {
 
 class _AddReviewPageState extends State<AddReviewPage> {
   final _formKey = GlobalKey<FormState>();
-  final _commentController = TextEditingController();
-
+  final TextEditingController _ctrl = TextEditingController();
   final _svc = BarService();
 
-  String? selectedType;
-  int selectedRating = 3;
-  bool isSubmitting = false;
+  String? _type;
+  int _note = 3;
+  bool _sending = false;
 
   @override
   void dispose() {
-    _commentController.dispose();
+    _ctrl.dispose();
     super.dispose();
   }
 
   Future<void> _submitReview() async {
-    if (!_formKey.currentState!.validate() || selectedType == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Veuillez remplir tous les champs requis'),
-        ),
-      );
+    if (_sending) {
+      return;
+    }
+
+    final form = _formKey.currentState;
+    if (form == null || !form.validate() || _type == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Veuillez remplir tous les champs requis'),
+          ),
+        );
+      }
       return;
     }
 
     setState(() {
-      isSubmitting = true;
+      _sending = true;
     });
+
+    final note = _note.round();
+    final comment = _ctrl.text;
 
     try {
       await _svc.addReview(
         barId: widget.barId,
-        type: selectedType!,
-        note: selectedRating,
-        commentaire: _commentController.text.trim().isNotEmpty
-            ? _commentController.text.trim()
-            : null,
+        type: _type!,
+        note: note,
+        commentaire: comment.isEmpty ? null : comment,
       );
 
-      if (mounted) {
-        Navigator.of(context).pop(true); // Return true to indicate success
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Avis ajouté avec succès !'),
-            backgroundColor: Colors.green,
-          ),
-        );
+      if (!mounted) {
+        return;
       }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Avis ajout? avec succ?s')),
+      );
+      Navigator.pop(context, true);
     } catch (e) {
+      if (!mounted) {
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString())),
+      );
+    } finally {
       if (mounted) {
         setState(() {
-          isSubmitting = false;
+          _sending = false;
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur: ${e.toString()}'),
-            backgroundColor: Colors.red,
-          ),
-        );
       }
     }
   }
@@ -118,13 +126,13 @@ class _AddReviewPageState extends State<AddReviewPage> {
           spacing: 8,
           runSpacing: 8,
           children: AvisItem.reviewTypes.map((type) {
-            final isSelected = selectedType == type;
+            final isSelected = _type == type;
             return FilterChip(
               label: Text(AvisItem.getTypeLabel(type)),
               selected: isSelected,
               onSelected: (selected) {
                 setState(() {
-                  selectedType = selected ? type : null;
+                  _type = selected ? type : null;
                 });
               },
               selectedColor: Theme.of(context).colorScheme.primaryContainer,
@@ -153,15 +161,13 @@ class _AddReviewPageState extends State<AddReviewPage> {
               child: GestureDetector(
                 onTap: () {
                   setState(() {
-                    selectedRating = rating;
+                    _note = rating;
                   });
                 },
                 child: Icon(
                   Icons.star,
                   size: 40,
-                  color: rating <= selectedRating
-                      ? Colors.amber
-                      : Colors.grey[300],
+                  color: rating <= _note ? Colors.amber : Colors.grey[300],
                 ),
               ),
             );
@@ -170,7 +176,7 @@ class _AddReviewPageState extends State<AddReviewPage> {
         const SizedBox(height: 8),
         Center(
           child: Text(
-            '$selectedRating/5',
+            '$_note/5',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
                   color: Theme.of(context).colorScheme.primary,
                   fontWeight: FontWeight.bold,
@@ -191,7 +197,7 @@ class _AddReviewPageState extends State<AddReviewPage> {
         ),
         const SizedBox(height: 12),
         TextFormField(
-          controller: _commentController,
+          controller: _ctrl,
           maxLines: 4,
           maxLength: 500,
           decoration: const InputDecoration(
@@ -213,8 +219,8 @@ class _AddReviewPageState extends State<AddReviewPage> {
     return SizedBox(
       width: double.infinity,
       child: FilledButton(
-        onPressed: isSubmitting ? null : _submitReview,
-        child: isSubmitting
+        onPressed: _sending ? null : _submitReview,
+        child: _sending
             ? const Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 mainAxisSize: MainAxisSize.min,

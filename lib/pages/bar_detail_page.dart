@@ -40,17 +40,19 @@ class _BarDetailPageState extends State<BarDetailPage> {
         _error = e.toString();
       });
     } finally {
-      if (mounted)
+      if (mounted) {
         setState(() {
           _loading = false;
         });
+      }
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_loading)
+    if (_loading) {
       return const Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
     if (_error != null) {
       return Scaffold(
         appBar: AppBar(title: const Text('Bar')),
@@ -65,10 +67,12 @@ class _BarDetailPageState extends State<BarDetailPage> {
         label: const Text('Ajouter un avis'),
         onPressed: () async {
           await Navigator.push(
-              context,
-              MaterialPageRoute(
-                  builder: (_) => AddReviewPage(barId: widget.barId)));
-          await _load(); // refresh après retour
+            context,
+            MaterialPageRoute(
+              builder: (_) => AddReviewPage(barId: widget.barId),
+            ),
+          );
+          await _load(); // refresh apres retour
         },
       ),
       body: ListView(
@@ -76,19 +80,24 @@ class _BarDetailPageState extends State<BarDetailPage> {
         children: [
           Text(b['adresse'] ?? '', style: const TextStyle(color: Colors.grey)),
           const SizedBox(height: 16),
-          const Text('Derniers avis',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          const Text(
+            'Derniers avis',
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+          ),
           const SizedBox(height: 8),
           if (_avis.isEmpty) const Text('Aucun avis pour le moment.'),
           for (final v in _avis)
             ListTile(
               leading: Chip(
-                  label: Text(
-                      (v['type'] as String).substring(0, 1).toUpperCase() +
-                          (v['type'] as String).substring(1))),
+                label: Text(
+                  (v['type'] as String).substring(0, 1).toUpperCase() +
+                      (v['type'] as String).substring(1),
+                ),
+              ),
               title: Text('${v['note']}/5'),
-              subtitle:
-                  v['commentaire'] == null ? null : Text(v['commentaire']),
+              subtitle: v['commentaire'] == null
+                  ? null
+                  : Text(v['commentaire'] as String),
               dense: true,
             ),
         ],

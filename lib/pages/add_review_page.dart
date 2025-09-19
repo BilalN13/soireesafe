@@ -17,7 +17,9 @@ class AddReviewPage extends StatefulWidget {
 class _AddReviewPageState extends State<AddReviewPage> {
   final _formKey = GlobalKey<FormState>();
   final _commentController = TextEditingController();
-  
+
+  final _svc = BarService();
+
   String? selectedType;
   int selectedRating = 3;
   bool isSubmitting = false;
@@ -43,12 +45,12 @@ class _AddReviewPageState extends State<AddReviewPage> {
     });
 
     try {
-      await BarService.addReview(
+      await _svc.addReview(
         barId: widget.barId,
         type: selectedType!,
         note: selectedRating,
-        commentaire: _commentController.text.trim().isNotEmpty 
-            ? _commentController.text.trim() 
+        commentaire: _commentController.text.trim().isNotEmpty
+            ? _commentController.text.trim()
             : null,
       );
 
@@ -170,9 +172,9 @@ class _AddReviewPageState extends State<AddReviewPage> {
           child: Text(
             '$selectedRating/5',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              color: Theme.of(context).colorScheme.primary,
-              fontWeight: FontWeight.bold,
-            ),
+                  color: Theme.of(context).colorScheme.primary,
+                  fontWeight: FontWeight.bold,
+                ),
           ),
         ),
       ],
